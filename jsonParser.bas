@@ -10,13 +10,16 @@
 '
 '
 '
+Option Compare Binary
+
 
 
 Private p As Long               ' Counter
-Private token As Variant
-Private translate As Object
+Private Token As Variant
+Private translator  As Object
 Private sstck As Stack          ' Structural level Stack
-private gao As Boolean          ' Grammatical analisis only
+Private gao As Boolean          ' Grammatical analisis only
+
 
 
 ' These are the six structural characters:
@@ -42,19 +45,13 @@ End Enum
 
 
 
-'-------------------------------------------------------------------
-' Public functions
-'-------------------------------------------------------------------
-
-
-
 ' Json parsing and coding algorithm
 '
 Public Function JsonEncode( _
         ByVal jsonPattern As String, _
         Optional grammaticalAnalisisOnly As Boolean = False) As String
 
-    If Len(js) = 0  Then Err.Raise 1020, "json.JsonEncode",
+    If Len(jsonPattern) = 0 Then Err.Raise 1020, "json.JsonEncode", _
                             "Empty string is not parsable!"
 
     gao = grammaticalAnalisisOnly
@@ -63,14 +60,15 @@ Public Function JsonEncode( _
     sstck.SetType ("Long")
 
     p = 0
-    Set translate = CreateObject("Scripting.dictionary")
-    translate.Add key:=sc.leftCurlyBracket, Item:=sc.rightCurlyBracket
-    translate.Add key:=sc.leftSquareBracket, Item:=sc.rightSquareBracket
-    translate.Add key:=sc.rightCurlyBracket, Item:=sc.leftCurlyBracket
-    translate.Add key:=sc.rightSquareBracket, Item:=sc.leftSquareBracket
+    Set translator = CreateObject("Scripting.dictionary")
+    translator.Add key:=sc.leftCurlyBracket, Item:=sc.rightCurlyBracket
+    translator.Add key:=sc.leftSquareBracket, Item:=sc.rightSquareBracket
+    translator.Add key:=sc.rightCurlyBracket, Item:=sc.leftCurlyBracket
+    translator.Add key:=sc.rightSquareBracket, Item:=sc.leftSquareBracket
 
     JsonEncode = JsonEncodeEngine(jsonPattern)
 End Function
+
 
 
 ' Decode json encoded string
@@ -119,12 +117,12 @@ End Function
 Public Function Parse(json As String, Optional typeReset As Boolean = False) As Variant
     p = 2
 
-    token = Tokenize(json)
+    Token = Tokenize(json)
     On Error GoTo errorHandler
 
-    If token(1) = "{" Then
+    If Token(1) = "{" Then
         Set Parse = ParseObj
-    ElseIf token(1) = "[" Then
+    ElseIf Token(1) = "[" Then
         Parse = ParseArr
     Else
         Err.Raise 1011, "JsonParser.Parse", "Invalid Json format."
@@ -148,8 +146,9 @@ End Function
 
 
 '-------------------------------------------------------------------
-' Private functions
+' Support functions
 '-------------------------------------------------------------------
+
 
 
 
@@ -172,7 +171,7 @@ Private Function JsonEncodeEngine(ByVal js As String) As String
                 PlaceChk cstck, cp
                 sstck.Push (cp)
                 cstck.Push (cp)
-                s = s & Chr(cp) & JsonEncodeEngine(js) & Chr(translate(cp))
+                s = s & Chr(cp) & JsonEncodeEngine(js) & Chr(translator(cp))
                 sstck.Pop
 
 
@@ -180,7 +179,7 @@ Private Function JsonEncodeEngine(ByVal js As String) As String
                 PlaceChk cstck, cp
                 sstck.Push (cp)
                 cstck.Push (cp)
-                s = s & Chr(cp) & JsonEncodeEngine(js) & Chr(translate(cp))
+                s = s & Chr(cp) & JsonEncodeEngine(js) & Chr(translator(cp))
                 sstck.Pop
 
 
@@ -202,7 +201,7 @@ Private Function JsonEncodeEngine(ByVal js As String) As String
                 cstck.Push (sc.comma)
 
             Case sc.colon:                                      ' KEY: ":"
-                If sstck.ReadLast = sc.leftSquareBracket Then
+                If sstck.Up = sc.leftSquareBracket Then
                     Err.Raise 1021, "json.JsonEncode", _
                         "Syntax error. An array cannot contain " & _
                         "a colon '" & Chr(sc.colon) & "', at: " & p
@@ -293,7 +292,7 @@ Private Function JsonEncodeEngine(ByVal js As String) As String
                 PlaceChk cstck, cp
                 s = s + Chr(cp)
                 ' Save, if it does not already exist: "0"
-                If cstck.ReadLast <> &H30 Then cstck.Push (CLng(&H30))
+                If cstck.Up <> &H30 Then cstck.Push (CLng(&H30))
 
             Case Else:                                          ' KEY: Other forbidden
                 Err.Raise 1023, "json.JsonEncode", _
@@ -304,7 +303,7 @@ Private Function JsonEncodeEngine(ByVal js As String) As String
         If sstck.Count <> 0 Then
             If Len(js) = p Then Err.Raise 1024, "json.JsonEncode", _
                     "Syntax error. Missing '" & _
-                    Chr(translate(sstck.ReadLast())) & "', at: " & p
+                    Chr(translator(sstck.Up)) & "', at: " & p
         Else
             Exit Do
         End If
@@ -312,7 +311,6 @@ Private Function JsonEncodeEngine(ByVal js As String) As String
 
     JsonEncodeEngine = s
 End Function
-
 
 
 
@@ -327,6 +325,9 @@ Private Function strHandler(ByVal s As String, js As String) As String
 
             Case &H22:                                          ' KEY: '"'
                 If Mid(js, p - 1, 1) <> &H5C Then
+                    If Len(s) = 1 Then Err.Raise 1024, "json.JsonEncode", _
+                        "Syntax error. Empty string, at: " & p
+                    
                     strHandler = s & Chr(cp)
                     Exit Do
                 Else
@@ -335,7 +336,7 @@ Private Function strHandler(ByVal s As String, js As String) As String
 
             Case &H20 To &H22, _
                 &H23 To &H5B, _
-                &H5D To &HFFFF:                                 ' KEY: 0x20-21 / 0x23-5B / 0x5D-FFFF
+                &H5D To &H10FFFF:                               ' KEY: 0x20-21 / 0x23-5B / 0x5D-10FFFF
 
                 s = s & ChrW(cp)
             Case Else
@@ -375,17 +376,26 @@ Private Function ObjectChk(cstck As Stack)
         End If
     ' Object contains more key/value pairs
     ElseIf cstck.Count > 3 Then
-        If cstck.Count Mod 4 = 0 Then
-            Err.Raise 1027, "json.JsonEncode", _
-                "Syntax error. Missing value for key, at: " & p
-        End If
+        Select Case cstck.Count Mod 4
+            Case 0:
+                Err.Raise 1027, "json.JsonEncode", _
+                    "Syntax error. To mutch separator in object, at: " & p
+            Case 1:
+                Err.Raise 1027, "json.JsonEncode", _
+                    "Syntax error. Key without value, at: " & p
+            Case 2:
+                Err.Raise 1027, "json.JsonEncode", _
+                    "Syntax error. Key without value, at: " & p
+            Case 3:
+                ' Everything is alright.
+        End Select
     End If
 End Function
 
 
 Private Function ArrayChk(cstck As Stack)
     If cstck.Count > 0 And cstck.Count Mod 2 <> 1 Then
-        Err.Raise 1028, "json.JsonEncode", _
+        Err.Raise 1023, "json.JsonEncode", _
             "Syntax error. To mutch separator in array, at: " & p
     End If
 End Function
@@ -395,18 +405,18 @@ End Function
 '
 Private Function PlaceChk(ByVal cstck As Stack, cp)
     ' Array
-    If sstck.ReadLast = sc.leftSquareBracket Then
+    If sstck.Up = sc.leftSquareBracket Then
         If cp = sc.comma Then
-            If cstck.ReadLast = sc.comma Then Err.Raise 1026, "json.JsonEncode", _
+            If cstck.Up = sc.comma Then Err.Raise 1026, "json.JsonEncode", _
                 "Syntax error. Unexpected separator '" & Chr(sc.comma) & "', at: " & p
 
-        ElseIf cstck.Count Mod 2 = 1 And cstck.ReadLast() <> &H30 Then
+        ElseIf cstck.Count Mod 2 = 1 And cstck.Up <> &H30 Then
             Err.Raise 1025, "json.JsonEncode", _
                 "Syntax error. Expected separator '" & Chr(sc.comma) & "', at: " & p
 
         End If
     ' Object
-    ElseIf sstck.ReadLast = sc.leftCurlyBracket Then
+    ElseIf sstck.Up = sc.leftCurlyBracket Then
         Select Case cstck.Count Mod 4
             Case 0:
                 If cp <> &H22 Then Err.Raise 1029, "json.JsonEncode", _
@@ -415,9 +425,12 @@ Private Function PlaceChk(ByVal cstck As Stack, cp)
                 If cp <> sc.colon Then If cp <> &H22 Then Err.Raise 1025, "json.JsonEncode", _
                     "Syntax error. Expected separator '" & Chr(sc.colon) & "', at: " & p
             Case 2:
-                ' Do nothing
+                If cp = sc.colon Or cp = sc.comma Then
+                    Err.Raise 1025, "json.JsonEncode", _
+                        "Syntax error. Unexpected token '" & Chr(cp) & "', at: " & p
+                End If
             Case 3:
-                If cp <> sc.comma And cstck.ReadLast() <> &H30 Then Err.Raise 1025, "json.JsonEncode", _
+                If cp <> sc.comma And cstck.Up <> &H30 Then Err.Raise 1025, "json.JsonEncode", _
                     "Syntax error. Expected separator '" & Chr(sc.comma) & "', at: " & p
         End Select
     End If
@@ -426,10 +439,10 @@ End Function
 
 
 Private Function StackChk(cp)
-    If translate(cp) <> sstck.ReadLast Then
+    If translator(cp) <> sstck.Up Then
         Err.Raise 1022, "json.JsonEncode", _
             "Syntax error. Expected structural character '" & _
-                Chr(translate(sstck.ReadLast)) & "', at: " & p
+                Chr(translator(sstck.Up)) & "', at: " & p
     End If
 End Function
 
@@ -440,7 +453,7 @@ Private Function ParseObj() As Variant
     Set dict = CreateObject("Scripting.dictionary")
     Dim e As Integer
     Do:
-        Select Case token(p)
+        Select Case Token(p)
             Case "]":
                         Set ParseObj = dict
                         Exit Function
@@ -449,18 +462,18 @@ Private Function ParseObj() As Variant
             Case ",", ":":
                         ' do nothing
             Case Else:
-                        If token(p + 2) = "[" Then      ' Add dictionary
+                        If Token(p + 2) = "[" Then      ' Add dictionary
                             e = p
                             p = p + 3
-                            dict.Add key:=token(e), Item:=ParseArr()
+                            dict.Add key:=Token(e), Item:=ParseArr()
 
-                        ElseIf token(p + 2) = "{" Then  ' Add array
+                        ElseIf Token(p + 2) = "{" Then  ' Add array
                             e = p
                             p = p + 3
-                            dict.Add key:=token(e), Item:=ParseObj()
+                            dict.Add key:=Token(e), Item:=ParseObj()
 
                         Else
-                            dict.Add key:=token(p), Item:=token(p + 2)
+                            dict.Add key:=Token(p), Item:=Token(p + 2)
                             p = p + 2
                         End If
         End Select
@@ -476,7 +489,7 @@ Private Function ParseArr() As Variant
     Dim e As Integer
     e = 0
     Do:
-        Select Case token(p)
+        Select Case Token(p)
             Case "}":
                         ' do nothing
             Case "{":
@@ -494,7 +507,7 @@ Private Function ParseArr() As Variant
                         e = e + 1
             Case Else:
                         ReDim Preserve arr(e)
-                        arr(e) = token(p)
+                        arr(e) = Token(p)
         End Select
         p = p + 1
     Loop
@@ -533,7 +546,7 @@ End Function
 
 
 Private Function Reset(jObj As Variant) As Variant
-
+    
     ' Dictionary
     If VarType(jObj) = vbObject Then
         Dim k As Variant
@@ -560,7 +573,7 @@ Private Function Reset(jObj As Variant) As Variant
             jObj = Null
         End If
     End If
-
+            
     Reset = jObj
 End Function
 
