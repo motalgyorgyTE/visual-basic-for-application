@@ -200,12 +200,7 @@ Private Function JsonEncodeEngine(ByVal js As String) As String
                 s = s + Chr(cp)
                 cstck.Push (sc.comma)
 
-            Case sc.colon:                                      ' KEY: ":"
-                If sstck.Up = sc.leftSquareBracket Then
-                    Err.Raise 1021, "json.JsonEncode", _
-                        "Syntax error. An array cannot contain " & _
-                        "a colon '" & Chr(sc.colon) & "', at: " & p
-                End If
+            Case sc.colon:                                      ' KEY: ":"                
                 PlaceChk cstck, cp
                 s = s + Chr(cp)
                 cstck.Push (sc.colon)
@@ -355,41 +350,20 @@ End Function
 
 ' post-process control
 '
-Private Function ObjectChk(cstck As Stack)
-    ' Object contains max one key/value pair
-    If cstck.Count > 0 And cstck.Count < 4 Then
-        If cstck.Count = 1 Then
+Private Function ObjectChk(cstck As Stack)    
+    Select Case cstck.Count Mod 4
+        Case 0:
+            Err.Raise 1026, "json.JsonEncode", _
+                "Syntax error. Unexpected separator '" & Chr(sc.comma) & "', at: " & p
+        Case 1:
             Err.Raise 1025, "json.JsonEncode", _
-                "Syntax error. Missing separator '" & Chr(sc.colon) & "', at: " & p
-        ElseIf cstck.Count Mod 4 <> 3 Then
-            Select Case (cstck.Count Mod 4)
-                Case 0:
-                    Err.Raise 1026, "json.JsonEncode", _
-                        "Syntax error. Unexpected separator '" & Chr(sc.comma) & "', at: " & p
-                Case 1:
-                    Err.Raise 1025, "json.JsonEncode", _
-                        "Syntax error. Expected separator '" & Chr(sc.colon) & "', at: " & p
-                Case 2:
-                    Err.Raise 1027, "json.JsonEncode", _
-                        "Syntax error. Missing value for key, at: " & p
-            End Select
-        End If
-    ' Object contains more key/value pairs
-    ElseIf cstck.Count > 3 Then
-        Select Case cstck.Count Mod 4
-            Case 0:
-                Err.Raise 1027, "json.JsonEncode", _
-                    "Syntax error. To mutch separator in object, at: " & p
-            Case 1:
-                Err.Raise 1027, "json.JsonEncode", _
-                    "Syntax error. Key without value, at: " & p
-            Case 2:
-                Err.Raise 1027, "json.JsonEncode", _
-                    "Syntax error. Key without value, at: " & p
-            Case 3:
-                ' Everything is alright.
-        End Select
-    End If
+                "Syntax error. Expected separator '" & Chr(sc.colon) & "', at: " & p
+        Case 2:
+            Err.Raise 1027, "json.JsonEncode", _
+                "Syntax error. Key without value, at: " & p
+        Case 3:
+            ' Everything is alright.
+    End Select
 End Function
 
 
@@ -406,17 +380,21 @@ End Function
 Private Function PlaceChk(ByVal cstck As Stack, cp)
     ' Array
     If sstck.Up = sc.leftSquareBracket Then
-        If cp = sc.comma Then
-            If cstck.Up = sc.comma Then Err.Raise 1026, "json.JsonEncode", _
-                "Syntax error. Unexpected separator '" & Chr(sc.comma) & "', at: " & p
-
-        ElseIf cstck.Count Mod 2 = 1 And cstck.Up <> &H30 Then
-            Err.Raise 1025, "json.JsonEncode", _
-                "Syntax error. Expected separator '" & Chr(sc.comma) & "', at: " & p
-
-        End If
+        Select Case cp
+            Case sc.comma:
+                Err.Raise 1026, "json.JsonEncode", _
+                    "Syntax error. Unexpected separator '" & Chr(sc.comma) & "', at: " & p                                                            
+            Case sc.colon :
+                Err.Raise 1021, "json.JsonEncode", _
+                    "Syntax error. Unexpected separator '" & Chr(sc.colon) & "', at: " & p
+            Case Else:
+                If cstck.Count Mod 2 = 1 And cstck.Up <> &H30 Then
+                    Err.Raise 1025, "json.JsonEncode", _
+                        "Syntax error. Expected separator '" & Chr(sc.comma) & "', at: " & p
+                End If                                          
+        End Select                
     ' Object
-    ElseIf sstck.Up = sc.leftCurlyBracket Then
+    Else
         Select Case cstck.Count Mod 4
             Case 0:
                 If cp <> &H22 Then Err.Raise 1029, "json.JsonEncode", _
@@ -425,8 +403,7 @@ Private Function PlaceChk(ByVal cstck As Stack, cp)
                 If cp <> sc.colon Then If cp <> &H22 Then Err.Raise 1025, "json.JsonEncode", _
                     "Syntax error. Expected separator '" & Chr(sc.colon) & "', at: " & p
             Case 2:
-                If cp = sc.colon Or cp = sc.comma Then
-                    Err.Raise 1025, "json.JsonEncode", _
+                If cp = sc.colon Or cp = sc.comma Then Err.Raise 1025, "json.JsonEncode", _
                         "Syntax error. Unexpected token '" & Chr(cp) & "', at: " & p
                 End If
             Case 3:
