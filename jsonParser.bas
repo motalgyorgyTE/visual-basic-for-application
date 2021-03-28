@@ -400,7 +400,7 @@ Private Function PlaceChk(ByVal cstck As Stack, cp)
             If cstck.ReadLast = sc.comma Then Err.Raise 1026, "json.JsonEncode", _
                 "Syntax error. Unexpected separator '" & Chr(sc.comma) & "', at: " & p
 
-        ElseIf cstck.Count Mod 2 = 1 And cstck.ReadLast() <> Asc("0") Then
+        ElseIf cstck.Count Mod 2 = 1 And cstck.ReadLast() <> &H30 Then
             Err.Raise 1025, "json.JsonEncode", _
                 "Syntax error. Expected separator '" & Chr(sc.comma) & "', at: " & p
 
@@ -417,7 +417,7 @@ Private Function PlaceChk(ByVal cstck As Stack, cp)
             Case 2:
                 ' Do nothing
             Case 3:
-                If cp <> sc.comma And cstck.ReadLast() <> Asc("0") Then Err.Raise 1025, "json.JsonEncode", _
+                If cp <> sc.comma And cstck.ReadLast() <> &H30 Then Err.Raise 1025, "json.JsonEncode", _
                     "Syntax error. Expected separator '" & Chr(sc.comma) & "', at: " & p
         End Select
     End If
