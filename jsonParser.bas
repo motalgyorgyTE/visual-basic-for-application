@@ -298,7 +298,7 @@ Private Function JsonEncodeEngine(ByVal js As String) As String
             Case Else:                                          ' KEY: Other forbidden
                 Err.Raise 1023, "json.JsonEncode", _
                     "Syntax error, forbidden character, at: " & _
-                    p & Chr(10) & "Code point:  0x" & Right("000" & Hex(cp), 4)
+                    p & Chr(10) & "Code point:  0x" & Right(&H30 & &H30 & &H30 & Hex(cp), 4)
         End Select
 
         If sstck.Count <> 0 Then
@@ -343,7 +343,7 @@ Private Function strHandler(ByVal s As String, js As String) As String
                     s = s & ChrW(cp)
                 Else
                     s = s & Chr(&H5C) & Chr(&H75)
-                    s = s & Right(&H30 & &H30 & &H30 & &H30 & StrConv(Hex(cp), vbLowerCase), 4)
+                    s = s & Right(&H30 & &H30 & &H30 & StrConv(Hex(cp), vbLowerCase), 4)
                 End If
         End Select
     Loop
