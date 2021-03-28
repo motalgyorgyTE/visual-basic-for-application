@@ -325,9 +325,9 @@ Private Function strHandler(ByVal s As String, js As String) As String
         cp = CLng(AscW(Mid(js, p, 1)))
         Select Case cp
 
-            Case &H22:
-                If Mid(js, p - 1, 1) <> &H5C Then               ' KEY: "\""
-                    strHandler = s & Chr(&H22)
+            Case &H22:                                          ' KEY: '"'
+                If Mid(js, p - 1, 1) <> &H5C Then
+                    strHandler = s & Chr(cp)
                     Exit Do
                 Else
                     s = s & ChrW(cp)
