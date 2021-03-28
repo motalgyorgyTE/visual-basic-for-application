@@ -34,10 +34,10 @@ End Enum
 ' Insignificant whitespace is allowed before or after any of the six
 ' structural characters.
 Private Enum ws
-    spac_e = &H20               ' Space
-    horizontalTab = &H9         ' Horizontal tab
-    lineFeed = &HA              ' Line feed or New line
-    carrageReturn = &HD         ' Carriage return
+    spac_e = &H20               ' " "  Space
+    horizontalTab = &H9         ' "\t" Horizontal tab
+    lineFeed = &HA              ' "\n" Line feed or New line
+    carrageReturn = &HD         ' "\r" Carriage return
 End Enum
 
 
