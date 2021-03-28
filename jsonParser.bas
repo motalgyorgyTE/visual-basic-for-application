@@ -322,7 +322,7 @@ Private Function strHandler(ByVal s As String, js As String) As String
     s = s & Chr(&H22)
     Do
         p = p + 1
-        cp = CInt(AscW(Mid(js, p, 1)))
+        cp = CLng(AscW(Mid(js, p, 1)))
         Select Case cp
 
             Case &H22:
